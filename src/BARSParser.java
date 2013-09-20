@@ -18,21 +18,28 @@ import org.xml.sax.helpers.DefaultHandler;
 public class BARSParser extends DefaultHandler {
 	private static int BOT_PARSE = 0;
 	private static int CNC_PARSE = 1;
+	private static int DDOS_PARSE = 2;
 
 	private static Connection con;
 	private static String botParseSuffix = "bots.xml";
 	private static String cncParseSuffix = "cnc.xml";
+	private static String ddosParseSuffix = "ddos.xml";
 	private static String from;
 	private static String to;
 	private static String createBotTable = "create table bots(botnet_id VARCHAR(255) NOT NULL,ip VARCHAR(255) NOT NULL,family VARCHAR(255) NOT NULL,confidence INT(3) NOT NULL,timestamp DATETIME NOT NULL,addtime DATETIME NOT NULL,PRIMARY KEY(botnet_id,ip,timestamp));";
 	private static String createGeoIPTable = "create table geoip(ip VARCHAR(255) NOT NULL,asname VARCHAR(255) NOT NULL,asn INT(11) NOT NULL,longitude DOUBLE(11,8) NOT NULL,latitude DOUBLE(11,8) NOT NULL,city VARCHAR(255) NOT NULL,cc VARCHAR(255) NOT NULL,PRIMARY KEY(ip));";
 	private static String createCncTable = "create table cnc(botnet_id VARCHAR(255) NOT NULL,type VARCHAR(255) NOT NULL,family VARCHAR(255) NOT NULL,confidence INT(3) NOT NULL,timestamp DATETIME NOT NULL,last_active DATETIME NOT NULL,ip VARCHAR(255) NOT NULL, port VARCHAR(255) NOT NULL, protocol INT(4),url VARCHAR(255), sha1 VARCHAR(255), md5 VARCHAR(255), PRIMARY KEY(botnet_id,last_active,sha1));";
+	private static String createDDoSTable = "create table ddos(id VARCHAR(255) NOT NULL,targetip VARCHAR(255) NOT NULL,botnet_id VARCHAR(255) NOT NULL, family VARCHAR(255),confidence INT(3) NOT NULL,ongoing INT(1),category VACHAR(255), timestamp DATETIME NOT NULL,addtime DATETIME NOT NULL,endtime DATETIME, PRIMARY KEY(id,family,timestamp));";
 	private static String insertBot = "INSERT IGNORE INTO bots (botnet_id,ip,family,confidence,timestamp,addtime) "
 			+ "values ('{0}', '{1}', '{2}','{3}', '{4}', '{5}');";
 	private static String insertGeoIp = "INSERT IGNORE INTO geoip (ip,asname,asn,longitude,latitude,city,cc) "
 			+ "values ('{0}', '{1}', '{2}','{3}', '{4}', '{5}', '{6}');";
 	private static String insertBotnet = "INSERT IGNORE INTO cnc (botnet_id,type,family,confidence,timestamp,last_active,ip,port,protocol,url,sha1,md5) "
 			+ "values ('{0}', '{1}', '{2}','{3}', '{4}', '{5}', '{6}', '{7}', '{8}', '{9}', '{10}', '{11}');";
+	private static String insertDDoS = "INSERT IGNORE INTO ddos (id, targetip, botnet_id, family, confidence, ongoing, category, timestamp, addtime, endtime) "
+			+ "values ('{0}', '{1}', '{2}','{3}', '{4}', '{5}', '{6}', '{7}', '{8}', '{9}');";
+	private static String replaceDDoS = "REPLACE INTO ddos (id, targetip, botnet_id, family, confidence, ongoing, category, timestamp, addtime, endtime) "
+			+ "values ('{0}', '{1}', '{2}','{3}', '{4}', '{5}', '{6}', '{7}', '{8}', '{9}');";
 
 	/**
 	 * @param args
@@ -49,7 +56,7 @@ public class BARSParser extends DefaultHandler {
 			parseDocument(args[0], Integer.parseInt(args[1]));
 		} else {
 			System.out
-					.println("Usage: BARSParser dir_path parse_mode [from] [to]\nparse_mode: 0(bots) 1(cnc)");
+					.println("Usage: BARSParser dir_path parse_mode [from] [to]\nparse_mode: 0(bots) 1(cnc) 2(ddos)");
 		}
 	}
 
@@ -90,6 +97,8 @@ public class BARSParser extends DefaultHandler {
 			return file.getName().endsWith(botParseSuffix);
 		} else if (mode == CNC_PARSE) {
 			return file.getName().endsWith(cncParseSuffix);
+		} else if (mode == DDOS_PARSE) {
+			return file.getName().endsWith(ddosParseSuffix);
 		}
 		return false;
 	}
@@ -106,6 +115,11 @@ public class BARSParser extends DefaultHandler {
 				BotnetParser parser = new BotnetParser();
 				sp.parse(file, parser);
 				return parser.getBotnetList();
+			} else if (mode == DDOS_PARSE) {
+				String fileName = file.getName();
+				DDoSParser parser = new DDoSParser(fileName.substring(0, fileName.length() - ddosParseSuffix.length() - 1));
+				sp.parse(file, parser);
+				return parser.getDDoSList();
 			}
 		} catch (SAXException se) {
 			se.printStackTrace();
@@ -216,6 +230,28 @@ public class BARSParser extends DefaultHandler {
 						}
 					}
 
+				} else if(mode == DDOS_PARSE){
+					DDoS ddos = (DDoS) object;
+					String templateSql;
+					if(ddos.getOngoing() == 0 && ddos.getEndTime() != null) {
+						templateSql = replaceDDoS;
+					} else {
+						templateSql = insertDDoS;
+					}
+					sql = MessageFormat.format(templateSql.replace("'", "''"),
+							ddos.getId(), ddos.getTargetIp(),ddos.getBotnetId(), 
+							ddos.getFamily(), ddos.getConfidence(),
+							ddos.getOngoing(),ddos.getCategory(),
+							dateFormat.format(ddos.getTimeStamp()),
+							dateFormat.format(ddos.getAddTime()),
+							dateFormat.format(ddos.getEndTime()));
+					stmt.executeUpdate(sql);
+					sql = MessageFormat.format(insertGeoIp.replace("'", "''"),
+							ddos.getTargetIp(), ddos.getBgp().getAsname(), ddos.getBgp().getAsn(),
+							ddos.getGeoip().getLongitude(), ddos.getGeoip().getLatitude(),
+							ddos.getGeoip().getCity().replace("'", "''"),
+							ddos.getGeoip().getCc());
+					stmt.executeUpdate(sql);
 				}
 
 			}
