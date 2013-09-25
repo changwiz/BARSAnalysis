@@ -29,7 +29,7 @@ public class BARSParser extends DefaultHandler {
 	private static String createBotTable = "create table bots(botnet_id VARCHAR(255) NOT NULL,ip VARCHAR(255) NOT NULL,family VARCHAR(255) NOT NULL,confidence INT(3) NOT NULL,timestamp DATETIME NOT NULL,addtime DATETIME NOT NULL,PRIMARY KEY(botnet_id,ip,timestamp));";
 	private static String createGeoIPTable = "create table geoip(ip VARCHAR(255) NOT NULL,asname VARCHAR(255) NOT NULL,asn INT(11) NOT NULL,longitude DOUBLE(11,8) NOT NULL,latitude DOUBLE(11,8) NOT NULL,city VARCHAR(255) NOT NULL,cc VARCHAR(255) NOT NULL,PRIMARY KEY(ip));";
 	private static String createCncTable = "create table cnc(botnet_id VARCHAR(255) NOT NULL,type VARCHAR(255) NOT NULL,family VARCHAR(255) NOT NULL,confidence INT(3) NOT NULL,timestamp DATETIME NOT NULL,last_active DATETIME NOT NULL,ip VARCHAR(255) NOT NULL, port VARCHAR(255) NOT NULL, protocol INT(4),url VARCHAR(255), sha1 VARCHAR(255), md5 VARCHAR(255), PRIMARY KEY(botnet_id,last_active,sha1));";
-	private static String createDDoSTable = "create table ddos(id VARCHAR(255) NOT NULL,targetip VARCHAR(255) NOT NULL,botnet_id VARCHAR(255) NOT NULL, family VARCHAR(255),confidence INT(3) NOT NULL,ongoing INT(1),category VACHAR(255), timestamp DATETIME NOT NULL,addtime DATETIME NOT NULL,endtime DATETIME, PRIMARY KEY(id,family,timestamp));";
+	private static String createDDoSTable = "create table ddos(id VARCHAR(255) NOT NULL,targetip VARCHAR(255) NOT NULL, targetdns VARCHAR(255), botnet_id VARCHAR(255) NOT NULL, family VARCHAR(255),confidence INT(3) NOT NULL,ongoing INT(1),category VARCHAR(255), timestamp DATETIME NOT NULL,addtime DATETIME NOT NULL,endtime DATETIME, PRIMARY KEY(id,family,timestamp));";
 	private static String insertBot = "INSERT IGNORE INTO bots (botnet_id,ip,family,confidence,timestamp,addtime) "
 			+ "values ('{0}', '{1}', '{2}','{3}', '{4}', '{5}');";
 	private static String insertGeoIp = "INSERT IGNORE INTO geoip (ip,asname,asn,longitude,latitude,city,cc) "
@@ -117,7 +117,8 @@ public class BARSParser extends DefaultHandler {
 				return parser.getBotnetList();
 			} else if (mode == DDOS_PARSE) {
 				String fileName = file.getName();
-				DDoSParser parser = new DDoSParser(fileName.substring(0, fileName.length() - ddosParseSuffix.length() - 1));
+				DDoSParser parser = new DDoSParser(fileName.substring(0,
+						fileName.length() - ddosParseSuffix.length() - 1));
 				sp.parse(file, parser);
 				return parser.getDDoSList();
 			}
@@ -135,23 +136,10 @@ public class BARSParser extends DefaultHandler {
 		closeDB();
 		try {
 
-			// Register the JDBC driver for MySQL.
 			Class.forName("com.mysql.jdbc.Driver");
-
-			// Define URL of database server for
-			// database named mysql on the localhost
-			// with the default port number 3306.
 			String url = "jdbc:mysql://localhost:3306/bars";
-
-			// Get a connection to the database for a
-			// user named root with a blank password.
-			// This user is the default administrator
-			// having full privileges to do anything.
 			con = DriverManager.getConnection(url, "root", "");
-
-			// Display URL and connection information
 			System.out.println("URL: " + url);
-			System.out.println("Connection: " + con);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}// end catch
@@ -175,6 +163,8 @@ public class BARSParser extends DefaultHandler {
 			mode = BOT_PARSE;
 		} else if (list.get(0) instanceof Botnet) {
 			mode = CNC_PARSE;
+		} else if (list.get(0) instanceof DDoS) {
+			mode = DDOS_PARSE;
 		}
 		Statement stmt;
 		try {
@@ -192,10 +182,11 @@ public class BARSParser extends DefaultHandler {
 							dateFormat.format(bot.getAddTime()));
 					stmt.executeUpdate(sql);
 					sql = MessageFormat.format(insertGeoIp.replace("'", "''"),
-							bot.getIp(), bot.getBgp().getAsname(), bot.getBgp().getAsn(),
-							bot.getGeoip().getLongitude(), bot.getGeoip().getLatitude(),
-							bot.getGeoip().getCity().replace("'", "''"),
-							bot.getGeoip().getCc());
+							bot.getIp(), bot.getBgp().getAsname(), bot.getBgp()
+									.getAsn(), bot.getGeoip().getLongitude(),
+							bot.getGeoip().getLatitude(), bot.getGeoip()
+									.getCity().replace("'", "''"), bot
+									.getGeoip().getCc());
 					stmt.executeUpdate(sql);
 				} else if (mode == CNC_PARSE) {
 					Botnet botnet = (Botnet) object;
@@ -230,27 +221,35 @@ public class BARSParser extends DefaultHandler {
 						}
 					}
 
-				} else if(mode == DDOS_PARSE){
+				} else if (mode == DDOS_PARSE) {
 					DDoS ddos = (DDoS) object;
 					String templateSql;
-					if(ddos.getOngoing() == 0 && ddos.getEndTime() != null) {
+					if (ddos.getOngoing() == 0 && ddos.getEndTime() != null) {
 						templateSql = replaceDDoS;
 					} else {
 						templateSql = insertDDoS;
 					}
-					sql = MessageFormat.format(templateSql.replace("'", "''"),
-							ddos.getId(), ddos.getTargetIp(),ddos.getBotnetId(), 
-							ddos.getFamily(), ddos.getConfidence(),
-							ddos.getOngoing(),ddos.getCategory(),
+					sql = MessageFormat.format(
+							templateSql.replace("'", "''"),
+							ddos.getId(),
+							ddos.getTargetIp(),
+							ddos.getTargetDns(),
+							ddos.getBotnetId(),
+							ddos.getFamily(),
+							ddos.getConfidence(),
+							ddos.getOngoing(),
+							ddos.getCategory(),
 							dateFormat.format(ddos.getTimeStamp()),
-							dateFormat.format(ddos.getAddTime()),
-							dateFormat.format(ddos.getEndTime()));
+							ddos.getEndTime() != null ? dateFormat.format(ddos
+									.getEndTime()) : null);
 					stmt.executeUpdate(sql);
 					sql = MessageFormat.format(insertGeoIp.replace("'", "''"),
-							ddos.getTargetIp(), ddos.getBgp().getAsname(), ddos.getBgp().getAsn(),
-							ddos.getGeoip().getLongitude(), ddos.getGeoip().getLatitude(),
-							ddos.getGeoip().getCity().replace("'", "''"),
-							ddos.getGeoip().getCc());
+							ddos.getTargetIp(), ddos.getBgp().getAsname(), ddos
+									.getBgp().getAsn(), ddos.getGeoip()
+									.getLongitude(), ddos.getGeoip()
+									.getLatitude(), ddos.getGeoip().getCity()
+									.replace("'", "''"), ddos.getGeoip()
+									.getCc());
 					stmt.executeUpdate(sql);
 				}
 

@@ -12,32 +12,31 @@ public class DDoS {
 	private String id;
 	private Date timeStamp;
 	private String targetIp;
+	private String targetDns;
 	private int ongoing;
 	private String family;
 	private int confidence;
 	private String category;
-	private Date addTime;
 	private Date endTime;
 
 	public void populate(Attributes attributes) {
-		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		SimpleDateFormat dateFormat = new SimpleDateFormat(
+				"yyyy-MM-dd HH:mm:ss");
 		try {
 			this.timeStamp = dateFormat.parse(attributes.getValue("timestamp"));
 		} catch (ParseException e) {
 			e.printStackTrace();
 		}
 		this.targetIp = attributes.getValue("targetip");
+		this.targetDns = attributes.getValue("targetdns");
 		this.ongoing = Integer.parseInt(attributes.getValue("ongoing"));
 		this.confidence = Integer.parseInt(attributes.getValue("confidence"));
 		this.category = attributes.getValue("category");
-		try {
-			this.addTime = dateFormat.parse(attributes.getValue("addtime"));
-		} catch (ParseException e) {
-			e.printStackTrace();
-		}
 		this.id = attributes.getValue("id");
 		try {
-			this.endTime = dateFormat.parse(attributes.getValue("endtime"));
+			if (attributes.getValue("endtime") != null) {
+				this.endTime = dateFormat.parse(attributes.getValue("endtime"));
+			}
 		} catch (ParseException e) {
 			e.printStackTrace();
 		}
@@ -53,6 +52,10 @@ public class DDoS {
 
 	public String getTargetIp() {
 		return targetIp;
+	}
+
+	public String getTargetDns() {
+		return targetDns;
 	}
 
 	public int getOngoing() {
@@ -73,10 +76,6 @@ public class DDoS {
 
 	public String getCategory() {
 		return category;
-	}
-
-	public Date getAddTime() {
-		return addTime;
 	}
 
 	public Date getEndTime() {
@@ -132,7 +131,8 @@ public class DDoS {
 		private String cc = "";
 
 		public void populate(Attributes attributes) {
-			this.longitude = Double.parseDouble(attributes.getValue("longitude"));
+			this.longitude = Double.parseDouble(attributes
+					.getValue("longitude"));
 			this.latitude = Double.parseDouble(attributes.getValue("latitude"));
 			this.city = attributes.getValue("city");
 			this.cc = attributes.getValue("cc");
