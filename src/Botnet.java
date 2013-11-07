@@ -31,8 +31,12 @@ public class Botnet {
 		this.family = attributes.getValue("family");
 		this.confidence = Integer.parseInt(attributes.getValue("confidence"));
 		try {
-			this.lastActive = dateFormat.parse(attributes
-					.getValue("last_active"));
+			if(attributes.getValue("last_active") != null){
+				this.lastActive = dateFormat.parse(attributes
+						.getValue("last_active"));
+			} else {
+				this.lastActive = null;
+			}
 		} catch (ParseException e) {
 			e.printStackTrace();
 		}
